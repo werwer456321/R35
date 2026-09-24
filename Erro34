@@ -1,98 +1,86 @@
--- ====================== BẤT TỬ + XEM HITBOX ======================
+-- ====================== BẤT TỬ + HITBOX CẦU VỒNG + NÉ BOSS ======================
 local player = game.Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
--- GUI chính
+-- GUI
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "GodHitboxGui"
+screenGui.Name = "GodSystem"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.DisplayOrder = 100
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- ========== NÚT BẤT TỬ ==========
-local godBtn = Instance.new("TextButton")
-godBtn.Name = "GodButton"
-godBtn.Size = UDim2.new(0, 95, 0, 36)
-godBtn.Position = UDim2.new(0.02, 0, 0.42, 0)
-godBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-godBtn.Text = "Bất tử: TẮT"
-godBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
-godBtn.TextScaled = true
-godBtn.Font = Enum.Font.GothamBold
-godBtn.BorderSizePixel = 0
-godBtn.Parent = screenGui
+-- Khung chứa 3 nút (để kéo cả cụm)
+local frame = Instance.new("Frame")
+frame.Name = "ButtonFrame"
+frame.Size = UDim2.new(0, 118, 0, 122)
+frame.Position = UDim2.new(0.02, 0, 0.40, 0)
+frame.BackgroundTransparency = 1
+frame.Parent = screenGui
 
-local godCorner = Instance.new("UICorner")
-godCorner.CornerRadius = UDim.new(0, 8)
-godCorner.Parent = godBtn
+-- Hàm tạo nút
+local function createButton(name, text, yPos, color)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.Position = UDim2.new(0, 0, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    btn.Text = text
+    btn.TextColor3 = color
+    btn.TextScaled = true
+    btn.Font = Enum.Font.GothamBold
+    btn.BorderSizePixel = 0
+    btn.Parent = frame
 
-local godStroke = Instance.new("UIStroke")
-godStroke.Thickness = 2
-godStroke.Color = Color3.fromRGB(255, 70, 70)
-godStroke.Parent = godBtn
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
 
--- ========== NÚT XEM HITBOX ==========
-local hitboxBtn = Instance.new("TextButton")
-hitboxBtn.Name = "HitboxButton"
-hitboxBtn.Size = UDim2.new(0, 110, 0, 36)
-hitboxBtn.Position = UDim2.new(0.02, 0, 0.48, 0)
-hitboxBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-hitboxBtn.Text = "Xem Hitbox: TẮT"
-hitboxBtn.TextColor3 = Color3.fromRGB(120, 180, 255)
-hitboxBtn.TextScaled = true
-hitboxBtn.Font = Enum.Font.GothamBold
-hitboxBtn.BorderSizePixel = 0
-hitboxBtn.Visible = true -- hiện khi tắt bất tử
-hitboxBtn.Parent = screenGui
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = color
+    stroke.Parent = btn
 
-local hitCorner = Instance.new("UICorner")
-hitCorner.CornerRadius = UDim.new(0, 8)
-hitCorner.Parent = hitboxBtn
-
-local hitStroke = Instance.new("UIStroke")
-hitStroke.Thickness = 2
-hitStroke.Color = Color3.fromRGB(80, 140, 255)
-hitStroke.Parent = hitboxBtn
-
--- ========== BIẾN ==========
-local godEnabled = false
-local showHitbox = false
-local connections = {}
-local originalColors = {} -- lưu màu gốc để trả lại
-
--- ========== HÀM KÉO NÚT ==========
-local function makeDraggable(btn)
-    local dragging = false
-    local dragStart, startPos
-
-    btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = btn.Position
-        end
-    end)
-
-    UIS.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            btn.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-
-    UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
+    return btn, stroke
 end
 
-makeDraggable(godBtn)
-makeDraggable(hitboxBtn)
+local godBtn, godStroke = createButton("GodBtn", "Bất tử: TẮT", 0, Color3.fromRGB(255, 80, 80))
+local hitboxBtn, hitStroke = createButton("HitboxBtn", "Hitbox: TẮT", 40, Color3.fromRGB(100, 180, 255))
+local dodgeBtn, dodgeStroke = createButton("DodgeBtn", "Né Boss: TẮT", 80, Color3.fromRGB(255, 200, 50))
+
+-- Biến
+local godEnabled = false
+local showHitbox = false
+local dodgeEnabled = false
+local godLoop = nil
+local rainbowConn = nil
+local highlights = {}
+
+-- Kéo cả cụm nút
+local dragging = false
+local dragStart, startPos
+
+frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
 
 -- ========== BẤT TỬ ==========
 local function setGod(char, enabled)
@@ -100,69 +88,121 @@ local function setGod(char, enabled)
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
 
-    for _, conn in pairs(connections) do
-        conn:Disconnect()
+    if godLoop then
+        task.cancel(godLoop)
+        godLoop = nil
     end
-    table.clear(connections)
 
     if enabled then
         humanoid.MaxHealth = math.huge
         humanoid.Health = math.huge
 
-        table.insert(connections, humanoid.HealthChanged:Connect(function()
-            if humanoid.Health < humanoid.MaxHealth then
-                humanoid.Health = humanoid.MaxHealth
+        godLoop = task.spawn(function()
+            while godEnabled and char and char.Parent do
+                if humanoid and humanoid.Parent then
+                    humanoid.MaxHealth = math.huge
+                    humanoid.Health = math.huge
+                end
+                -- Tắt 100% hitbox
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        part.CanTouch = false
+                        part.CanQuery = false
+                    end
+                end
+                task.wait(0.03)
             end
-        end))
-
-        table.insert(connections, humanoid.Died:Connect(function()
-            humanoid.Health = humanoid.MaxHealth
-        end))
-
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanTouch = false
-            end
-        end
+        end)
     else
         humanoid.MaxHealth = 100
-        humanoid.Health = 100
+        humanoid.Health = math.clamp(humanoid.Health, 1, 100)
 
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
+                part.CanCollide = true
                 part.CanTouch = true
+                part.CanQuery = true
             end
         end
     end
 end
 
--- ========== XEM HITBOX ==========
-local function updateHitboxVisual(char, enabled)
+-- ========== HITBOX VIỀN CẦU VỒNG ==========
+local function clearHighlights()
+    for _, h in pairs(highlights) do
+        if h and h.Parent then
+            h:Destroy()
+        end
+    end
+    table.clear(highlights)
+    if rainbowConn then
+        rainbowConn:Disconnect()
+        rainbowConn = nil
+    end
+end
+
+local function updateHitbox(char, enabled)
+    clearHighlights()
+    if not enabled or not char then return end
+
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name \~= "HumanoidRootPart" then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "HitboxOutline"
+            highlight.Adornee = part
+            highlight.FillTransparency = 1
+            highlight.OutlineTransparency = 0
+            highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.Parent = part
+            table.insert(highlights, highlight)
+        end
+    end
+
+    -- Hiệu ứng cầu vồng
+    local hue = 0
+    rainbowConn = RunService.RenderStepped:Connect(function()
+        hue = (hue + 0.008) % 1
+        local color = Color3.fromHSV(hue, 1, 1)
+        for _, h in pairs(highlights) do
+            if h and h.Parent then
+                h.OutlineColor = color
+            end
+        end
+    end)
+end
+
+-- ========== NÉ BOSS ==========
+local function setDodge(char, enabled)
     if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
 
     if enabled then
-        originalColors = {}
+        -- Né mạnh: tắt hoàn toàn va chạm + tăng tốc
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
-                originalColors[part] = {
-                    Color = part.Color,
-                    Transparency = part.Transparency,
-                    Material = part.Material
-                }
-                part.Color = Color3.fromRGB(0, 255, 120) -- xanh sáng
-                part.Transparency = 0.45
-                part.Material = Enum.Material.Neon
+                part.CanCollide = false
+                part.CanTouch = false
+                part.CanQuery = false
             end
+        end
+        if humanoid then
+            humanoid.WalkSpeed = 32
         end
     else
-        for part, data in pairs(originalColors) do
-            if part and part.Parent then
-                part.Color = data.Color
-                part.Transparency = data.Transparency
-                part.Material = data.Material
+        if not godEnabled then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                    part.CanTouch = true
+                    part.CanQuery = true
+                end
             end
         end
-        table.clear(originalColors)
+        if humanoid then
+            humanoid.WalkSpeed = 16
+        end
     end
 end
 
@@ -172,36 +212,34 @@ local function updateUI()
         godBtn.Text = "Bất tử: BẬT"
         godBtn.TextColor3 = Color3.fromRGB(80, 255, 120)
         godStroke.Color = Color3.fromRGB(60, 220, 100)
-        godBtn.BackgroundColor3 = Color3.fromRGB(20, 40, 25)
-
-        hitboxBtn.Visible = false -- ẩn khi bất tử
-        if showHitbox then
-            showHitbox = false
-            updateHitboxVisual(player.Character, false)
-        end
     else
         godBtn.Text = "Bất tử: TẮT"
-        godBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
+        godBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
         godStroke.Color = Color3.fromRGB(255, 70, 70)
-        godBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-
-        hitboxBtn.Visible = true
     end
 
     if showHitbox then
-        hitboxBtn.Text = "Xem Hitbox: BẬT"
-        hitboxBtn.TextColor3 = Color3.fromRGB(80, 255, 180)
-        hitStroke.Color = Color3.fromRGB(60, 220, 160)
-        hitboxBtn.BackgroundColor3 = Color3.fromRGB(15, 35, 30)
+        hitboxBtn.Text = "Hitbox: BẬT"
+        hitboxBtn.TextColor3 = Color3.fromRGB(100, 255, 200)
+        hitStroke.Color = Color3.fromRGB(80, 255, 180)
     else
-        hitboxBtn.Text = "Xem Hitbox: TẮT"
-        hitboxBtn.TextColor3 = Color3.fromRGB(120, 180, 255)
+        hitboxBtn.Text = "Hitbox: TẮT"
+        hitboxBtn.TextColor3 = Color3.fromRGB(100, 180, 255)
         hitStroke.Color = Color3.fromRGB(80, 140, 255)
-        hitboxBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    end
+
+    if dodgeEnabled then
+        dodgeBtn.Text = "Né Boss: BẬT"
+        dodgeBtn.TextColor3 = Color3.fromRGB(255, 255, 100)
+        dodgeStroke.Color = Color3.fromRGB(255, 220, 50)
+    else
+        dodgeBtn.Text = "Né Boss: TẮT"
+        dodgeBtn.TextColor3 = Color3.fromRGB(255, 200, 50)
+        dodgeStroke.Color = Color3.fromRGB(220, 160, 30)
     end
 end
 
--- ========== SỰ KIỆN NÚT ==========
+-- Sự kiện nút
 godBtn.MouseButton1Click:Connect(function()
     godEnabled = not godEnabled
     updateUI()
@@ -211,29 +249,32 @@ godBtn.MouseButton1Click:Connect(function()
 end)
 
 hitboxBtn.MouseButton1Click:Connect(function()
-    if godEnabled then return end -- chỉ dùng khi tắt bất tử
     showHitbox = not showHitbox
     updateUI()
     if player.Character then
-        updateHitboxVisual(player.Character, showHitbox)
+        updateHitbox(player.Character, showHitbox)
     end
 end)
 
--- ========== KHI SPAWN LẠI ==========
+dodgeBtn.MouseButton1Click:Connect(function()
+    dodgeEnabled = not dodgeEnabled
+    updateUI()
+    if player.Character then
+        setDodge(player.Character, dodgeEnabled)
+    end
+end)
+
+-- Khi spawn lại
 player.CharacterAdded:Connect(function(char)
     task.wait(0.6)
-    if godEnabled then
-        setGod(char, true)
-    end
-    if showHitbox and not godEnabled then
-        updateHitboxVisual(char, true)
-    end
+    if godEnabled then setGod(char, true) end
+    if showHitbox then updateHitbox(char, true) end
+    if dodgeEnabled then setDodge(char, true) end
 end)
 
--- Chạy lần đầu
 if player.Character then
     setGod(player.Character, godEnabled)
 end
 updateUI()
 
-print("✅ Script Bất tử + Xem Hitbox (kéo được) đã sẵn sàng")
+print("✅ Bất tử + Hitbox cầu vồng + Né Boss đã sẵn sàng")
